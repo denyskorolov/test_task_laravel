@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  php:
+    user: root
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: backend
+    volumes:
+      - .:/var/www/html:cached
+    environment:
+      JWT_PASSPHRASE: ${JWT_PASS}
+    working_dir: /var/www/html
+    networks:
+      - network
+
+  nginx:
+    image: nginx:alpine
+    container_name: symfony_nginx
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www/html:cached
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - php
+    networks:
+      - network
+    environment:
+      - APP_ENV=dev
+
+  db:
+    image: mariadb
+    container_name: db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ${DB_DATABASE}
+      #MYSQL_USER: ${DB_USERNAME}
+      #MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ./data/db_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - network
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: db
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "8082:80"
+    depends_on:
+      - db
+    networks:
+      - network
+
+  mailpit:
+    image: axllent/mailpit
+    container_name: mailpit
+    restart: unless-stopped
+    volumes:
+      - ./data/mail:/data
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    environment:
+      MP_MAX_MESSAGES: 5000
+      MP_DATABASE: /data/mailpit.db
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    networks:
+      - network
+volumes:
+  db_data: { }
+networks:
+  network:
+    driver: bridge
